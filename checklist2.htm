@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Checklist Nhóm Cực Chất</title>
+  <style>
+    /* Giữ nguyên style đẹp như cũ */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+    
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --accent: #3b82f6;
+      --done: #94a3b8;
+      --border: #e2e8f0;
+    }
+    
+    body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+    .container { width: 100%; max-width: 500px; background: var(--card); border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.08); overflow: hidden; }
+    header { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 30px 24px; text-align: center; }
+    h1 { margin: 0; font-size: 28px; font-weight: 600; }
+    .input-area { padding: 24px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; }
+    #new-task { flex: 1; padding: 14px 16px; font-size: 16px; border: 2px solid #e2e8f0; border-radius: 12px; outline: none; transition: all 0.2s; }
+    #new-task:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(59,130,246,0.1); }
+    button { padding: 14px 20px; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    button:hover { background: #2563eb; transform: translateY(-2px); }
+    #tasks { list-style: none; margin: 0; padding: 0; }
+    li { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; transition: all 0.2s; }
+    li:hover { background: #f8fafc; }
+    li:last-child { border-bottom: none; }
+    input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; accent-color: var(--accent); }
+    .task-text { flex: 1; font-size: 16px; cursor: text; }
+    .task-text.done { text-decoration: line-through; color: var(--done); }
+    .delete { background: #ef4444; padding: 8px 12px; font-size: 14px; }
+    .delete:hover { background: #dc2626; }
+    .room-info { padding: 10px 24px; background: #eff6ff; text-align: center; font-size: 14px; color: #1e40af; }
+    .empty { text-align: center; padding: 40px 24px; color: #94a3b8; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Checklist Nhóm ✦</h1>
+    </header>
+    <div class="room-info" id="room-info"></div>
+    <div class="input-area">
+      <input type="text" id="new-task" placeholder="Thêm việc mới cho nhóm..." autocomplete="off" />
+      <button id="add-btn">Thêm</button>
+    </div>
+    <ul id="tasks"></ul>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script>
+    // === THAY ĐỔI CHỈ 1 CHỖ NÀY THÔI ===
+    const firebaseConfig = {
+      databaseURL: "https://check-list-d7d6e-default-rtdb.asia-southeast1.firebasedatabase.app/"  // Dán URL từ Firebase vào đây!
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Lấy room ID từ URL (ví dụ: ?room=nhomABC), mặc định là "default"
+    const urlParams = new URLSearchParams(window.location.search);
+    let roomId = urlParams.get('room') || 'default';
+    const tasksRef = db.ref('checklists/' + roomId);
+
+    const tasksList = document.getElementById('tasks');
+    const input = document.getElementById('new-task');
+    const addBtn = document.getElementById('add-btn');
+    const roomInfo = document.getElementById('room-info');
+
+    // Hiển thị tên phòng
+    roomInfo.textContent = `Phòng: ${roomId} (chia sẻ link này cho nhóm nhé!)`;
+
+    // Load và sync realtime
+    tasksRef.on('value', (snapshot) => {
+      tasksList.innerHTML = '';
+      const data = snapshot.val();
+      if (!data) {
+        tasksList.innerHTML = '<li class="empty">Chưa có việc nào, thêm đi nào! 🚀</li>';
+        return;
+      }
+      Object.keys(data).forEach(key => {
+        const task = data[key];
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <input type="checkbox" ${task.done ? 'checked' : ''}>
+          <span class="task-text ${task.done ? 'done' : ''}" contenteditable="true">${task.text}</span>
+          <button class="delete">×</button>
+        `;
+        li.dataset.key = key;
+        tasksList.appendChild(li);
+      });
+    });
+
+    // Thêm task
+    function addTask() {
+      const text = input.value.trim();
+      if (!text) return;
+      tasksRef.push({ text, done: false });
+      input.value = '';
+    }
+    addBtn.addEventListener('click', addTask);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') addTask(); });
+
+    // Xử lý checkbox, edit, delete
+    tasksList.addEventListener('change', (e) => {
+      if (e.target.type === 'checkbox') {
+        const li = e.target.closest('li');
+        tasksRef.child(li.dataset.key).update({ done: e.target.checked });
+      }
+    });
+
+    tasksList.addEventListener('blur', (e) => {
+      if (e.target.classList.contains('task-text')) {
+        const li = e.target.closest('li');
+        const newText = e.target.textContent.trim();
+        if (newText) {
+          tasksRef.child(li.dataset.key).update({ text: newText });
+        }
+      }
+    }, true);
+
+    tasksList.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete')) {
+        const li = e.target.closest('li');
+        tasksRef.child(li.dataset.key).remove();
+      }
+    });
+
+    input.focus();
+  </script>
+</body>
+</html>
